@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import type { NodeObject } from "force-graph";
+import { forceCollide } from "d3-force-3d";
 import { useGraphStore } from "../store/useGraphStore"; // adjust path if different
 import type { KGNode, KGLink, GraphData } from "../types/graph"; // adjust path if different
 
@@ -139,6 +140,16 @@ export default function KnowledgeGraph() {
   useEffect(() => {
     const el = fgRef.current;
     if (!el) return;
+
+    el.d3Force(
+    "collide",
+    forceCollide<KGNode>()
+      .radius((n) => (n.radius ?? 20) + 8)
+      .strength(1)
+  );
+
+    el.d3ReheatSimulation(); 
+
     const t = setTimeout(() => {
       try { el.zoomToFit(400, 50); } catch {}
     }, 60);
@@ -252,10 +263,10 @@ export default function KnowledgeGraph() {
             savePosition(String(n.id), n.x, n.y);
           }
         }}
-        nodeCanvasObject={(node: NodeObject, ctx: CanvasRenderingContext2D) => {
+        nodeCanvasObject={(node: NodeObject, ctx: CanvasRenderingContext2D, globalScale: number) => {
           const n = node as unknown as KGNode & { x: number; y: number };
           const degree = (n as any).degree || 0;
-         const r = 4 + Math.log2(1 + degree);
+          const r = 4 + Math.log2(1 + degree);
           const isHL = n.id != null && highlightIds.has(String(n.id));
 
           // highlight halo
@@ -274,21 +285,29 @@ export default function KnowledgeGraph() {
           ctx.fillStyle = (n as any).color || "#7aa2ff";
           ctx.fill();
 
-          // inner text (auto-fit inside circle, up to 2 lines)
           const label = (n as any).label || n.title || String(n.id);
-          drawTextInCircle(ctx, label, n.x, n.y, r, {
-            maxLines: 2,
-            padding: 6,
-            color: "#ffffff",
-          });
+          if (globalScale > 2) {
+            drawTextInCircle(ctx, label, n.x, n.y, r, {
+              maxLines: 10,
+              padding: 6,
+              color: "#ffffff",
+            });
+          }
+          else {
+            drawTextInCircle(ctx, label, n.x, n.y, r, {
+              maxLines: 2,
+              padding: 6,
+              color: "#ffffff",
+            });
+          }
         }}
         nodePointerAreaPaint={(node: NodeObject, color: string, ctx: CanvasRenderingContext2D) => {
           const n = node as unknown as KGNode & { x: number; y: number };
           const degree = (n as any).degree || 0;
-          const r = 14 + Math.log2(1 + degree) * 3;
+          const r = 4 + Math.log2(1 + degree);
           ctx.fillStyle = color;
           ctx.beginPath();
-          ctx.arc(n.x, n.y, r * 1.4, 0, 2 * Math.PI, false); // bigger hit area
+          ctx.arc(n.x, n.y, r, 0, 1.5 * Math.PI, false); // bigger hit area
           ctx.fill();
         }}
         linkWidth={(l: any) => {
