@@ -143,6 +143,16 @@ function drawTextInCircle(
   best.lines.forEach((line, i) => ctx.fillText(line, x, startY + i * lineHeight));
 }
 
+// helper: convert a mouse event to graph coords reliably
+function eventToGraphXY(fg: any, e: MouseEvent) {
+  // use canvas rect to get pixel offset
+  const rect = fg?.canvas?.().getBoundingClientRect?.();
+  const sx = e.clientX - (rect?.left ?? 0);
+  const sy = e.clientY - (rect?.top ?? 0);
+  // screen2GraphCoords expects screen px relative to canvas
+  return fg.screen2GraphCoords(sx, sy);
+}
+
 // ---------------------- component ----------------------
 export default function KnowledgeGraph() {
   const {
@@ -155,6 +165,7 @@ export default function KnowledgeGraph() {
     savePosition,
     setGraph,
     resetViewKey,
+    addFreeNodeAt,
   } = useGraphStore();
 
   const fgRef = useRef<any>(null);
@@ -295,11 +306,24 @@ export default function KnowledgeGraph() {
       <ForceGraph2D
         ref={fgRef}
         graphData={sanitizedGraph} // 🔧 use sanitized copy
-        cooldownTicks={cooldownTicks}
+        cooldownTicks={mode === "add" ? 0 : cooldownTicks}
         nodeRelSize={6}
         enableNodeDrag
         minZoom={0.3}
         maxZoom={12}
+        onBackgroundClick={(e: MouseEvent) => {
+          if (mode !== "add") return;
+          const el = fgRef.current;
+          if (!el) return;
+
+          // Convert screen coords to graph coords
+          const { x, y } = el.screen2GraphCoords(e.clientX, e.clientY);
+          addFreeNodeAt(x, y);
+
+          // optional: brief cooldown to settle layout (node is pinned anyway)
+          // setCooldownTicks(20);
+          // setTimeout(() => setCooldownTicks(0), 250);
+        }}
         onNodeClick={(n: any) => {
           const el = fgRef.current;
           if (!el) return;
@@ -310,10 +334,23 @@ export default function KnowledgeGraph() {
               rewireLink(pendingSource, String(n.id));
               setPendingSource(null);
             }
-          } else {
-            preziZoomIntoNode(n);
+            return;
+          }
+          
+          if (mode === "default") {
+            preziZoomIntoNode(n); // keep your zoom behavior in default mode
+          }
+          // In "add" mode, clicking nodes does nothing special.
+
+          if (mode === "add") {
+            // ✅ NEW: allow adding multiple nodes even if clicking on top of a node
+            const nx = (n.x ?? 0);
+            const ny = (n.y ?? 0);
+            addFreeNodeAt(nx, ny);
+            return;
           }
         }}
+
         onNodeDragEnd={(n: any) => {
           if (typeof n?.x === "number" && typeof n?.y === "number") {
             savePosition(String(n.id), n.x, n.y);

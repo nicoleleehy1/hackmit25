@@ -40,11 +40,13 @@ type GraphState = {
   removeNode: (id: string) => void;
   savePosition: (id: string, x: number, y: number) => void;
 
-  expandNode: (id: string) => void; // mock expansion (Step 1)
+  expandNode: (id: string) => void;
   rewireLink: (sourceId: string, targetId: string) => void;
 
+  addFreeNodeAt: (x: number, y: number) => void;
+
   highlight: (ids: string[]) => void;
-  resetViewKey: number; // bump to trigger zoomToFit in component
+  resetViewKey: number;
   bumpReset: () => void;
 };
 
@@ -86,6 +88,26 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const g: GraphData = {
       nodes: s.graph.nodes.filter(n => n.id !== id),
       links: s.graph.links.filter(l => l.source !== id && l.target !== id)
+    };
+    return { graph: recomputeDegrees(g) };
+  }),
+  addFreeNodeAt: (x, y) => set((s) => {
+    const idx = s.graph.nodes.length;
+    const id = uid();
+    const title = `Node ${idx + 1}`;
+    const node: KGNode = {
+      id,
+      title,
+      label: title,
+      level: 0,
+      color: distinctColor(idx),
+      radius: 0,
+      x, y,
+      fx: x, fy: y, // pin so it stays where you clicked
+    };
+    const g: GraphData = {
+      nodes: [...s.graph.nodes, node],
+      links: s.graph.links, // no links — independent
     };
     return { graph: recomputeDegrees(g) };
   }),
