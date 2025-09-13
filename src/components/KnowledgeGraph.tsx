@@ -199,7 +199,7 @@ export default function KnowledgeGraph() {
 
     const t = setTimeout(() => {
       try {
-        el.zoomToFit(400, 50);
+        el.zoomToFit(300, 150);
       } catch {}
     }, 60);
     return () => clearTimeout(t);
@@ -249,56 +249,40 @@ export default function KnowledgeGraph() {
 
   function preziZoomIntoNode(n: any) {
     const el = fgRef.current;
-    if (el && typeof n?.x === "number" && typeof n?.y === "number") {
-      el.centerAt(n.x, n.y, 400);
-      el.zoom(12, 400);
-    }
+    if (!el) return;
+
+    viewStackRef.current.push(normalizeGraphData(structuredClone(sanitizedGraph)));
+    setStackDepth(viewStackRef.current.length);
+
+    const focused = buildFocusedGraph(n as KGNode);
+    setCooldownTicks(60);
+    setGraph(focused);
 
     setTimeout(() => {
-      // 🔧 push a safe snapshot (clone + normalize) of the *current sanitized* graph
-      viewStackRef.current.push(
-        (() => {
-          try {
-            return normalizeGraphData(structuredClone(sanitizedGraph));
-          } catch {
-            return normalizeGraphData(JSON.parse(JSON.stringify(sanitizedGraph)));
-          }
-        })()
-      );
-      setStackDepth(viewStackRef.current.length);
-
-      const focused = buildFocusedGraph(n as KGNode);
-
-      setCooldownTicks(60);
-      setGraph(focused); // already normalized
-
-      setTimeout(() => {
-        const el2 = fgRef.current;
-        try {
-          if (el2) {
-            el2.centerAt(0, 0, 400);
-            el2.zoom(4, 400);
-          }
-        } catch {}
-        setTimeout(() => setCooldownTicks(0), 1200);
-      }, 100);
-    }, 420);
-  }
+      try {
+        el.zoomToFit(300, 150);
+      } catch {}
+      setTimeout(() => setCooldownTicks(0), 800);
+    }, 200); // small delay so the graph renders first
+}
 
   function handleBack() {
     const prev = viewStackRef.current.pop();
     if (!prev) return;
+
     setStackDepth(viewStackRef.current.length);
 
     setCooldownTicks(60);
-    // 🔧 ensure prev is normalized (it should already be), but be safe:
+
+    // ensure prev is normalized (it should already be), but be safe:
     setGraph(normalizeGraphData(prev));
+
     setTimeout(() => {
       try {
-        fgRef.current?.zoomToFit(400, 50);
+        fgRef.current?.zoomToFit(300, 150);
       } catch {}
       setTimeout(() => setCooldownTicks(0), 800);
-    }, 100);
+    }, 200);
   }
 
   return (
@@ -411,7 +395,7 @@ export default function KnowledgeGraph() {
         {stackDepth > 0 && (
           <button
             onClick={handleBack}
-            className="pointer-events-auto rounded-full bg-white/90 px-3 py-1 font-medium text-gray-800 shadow hover:bg-white"
+            className="pointer-events-auto rounded-full bg-white/90 px-3 py-1 font-medium text-gray-800 shadow hover:bg-blue-500 hover:text-white"
           >
             ← Back
           </button>

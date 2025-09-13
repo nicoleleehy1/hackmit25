@@ -1,32 +1,10 @@
+"use client";
+
 import React, { useState } from "react";
-import { useGraphStore } from "../store/useGraphStore"; // ✅ so you can update the graph
+import { useGraphStore } from "../store/useGraphStore";
 
 const PromptBar: React.FC = () => {
   const [query, setQuery] = useState("");
-  const setGraph = useGraphStore((s) => s.setGraph);
-
-  // 🔹 Step 5: add handleSubmit here
-
-  const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!query.trim()) return;
-
-  try {
-    const res = await fetch("http://localhost:4000/api/graph/search", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query }),
-    });
-    const data = await res.json();
-
-    // ✅ convenience method updates nodes, edges, and sources at once
-    useGraphStore.getState().setFromResponse(data);
-
-  } catch (err) {
-    console.error("Graph search failed", err);
-  }
-};
-
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,18 +18,14 @@ const PromptBar: React.FC = () => {
       });
       const data = await res.json();
 
-      // ✅ Push graph into Zustand store so KnowledgeGraph updates
-      setGraph(data.graph);
-
-      console.log("graph:", data.graph);
-      console.log("sources:", data.sources);
+      // updates nodes, edges, and sources at once
+      useGraphStore.getState().setFromResponse(data);
     } catch (err) {
       console.error("Graph search failed", err);
     }
   };
 
   return (
-    // 🔹 Wrap the bar in a <form> so Enter triggers handleSubmit
     <form
       onSubmit={handleSubmit}
       style={{
@@ -79,7 +53,7 @@ const PromptBar: React.FC = () => {
           fontSize: "16px",
           width: "100%",
           background: "transparent",
-          color: "#000", // black text
+          color: "#000",
         }}
       />
     </form>
