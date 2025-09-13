@@ -86,13 +86,18 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     };
     return { graph: recomputeDegrees(g) };
   }),
-  savePosition: (id, x, y) => set(s => {
-    const g: GraphData = {
-      nodes: s.graph.nodes.map(n => n.id === id ? { ...n, fx: x, fy: y, x, y } : n),
-      links: s.graph.links
-    };
-    return { graph: g };
-  }),
+  savePosition: (id, x, y) => set((s) => {
+  const node = s.graph.nodes.find(n => n.id === id);
+  if (node) {
+    // mutate in place so links keep referring to the same object
+    (node as any).x = x;
+    (node as any).y = y;
+    (node as any).fx = x;  // pin so it stays where you left it
+    (node as any).fy = y;
+  }
+  // return the same graph reference; react-force-graph reads the mutated objects
+  return { graph: s.graph };
+}),
 
   rewireLink: (sourceId, targetId) => {
     get().addLink(sourceId, targetId);
