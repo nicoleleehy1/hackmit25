@@ -50,7 +50,10 @@ type GraphState = {
 
 const initial: GraphData = {
   nodes: [
-    { id: "root", title: "Your Topic", label: "Your Topic", level: 0, color: distinctColor(0) }
+    {
+      id: "root", title: "Your Topic", label: "Your Topic", level: 0, color: distinctColor(0),
+      radius: 0
+    }
   ],
   links: []
 };
@@ -124,6 +127,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         label: t,
         level,
         color: distinctColor(baseIdx + i),
+        radius: 0, // Add default radius value
       };
     });
 

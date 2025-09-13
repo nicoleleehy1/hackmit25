@@ -1,4 +1,5 @@
 export type KGNode = {
+  radius: number;
     id: string;
     title: string;
     summary?: string;
