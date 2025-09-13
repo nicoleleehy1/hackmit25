@@ -25,6 +25,95 @@ function radialChildren(center: { x: number; y: number }, count: number, radius 
   return out;
 }
 
+// Draw text inside a circle, auto-fitting font size and wrapping up to 2 lines.
+// Draw text inside a circle, auto-fitting with a tiny fallback.
+function drawTextInCircle(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  r: number,
+  options?: { maxLines?: number; padding?: number; color?: string; minPx?: number; maxPx?: number }
+) {
+  const maxLines = options?.maxLines ?? 2;
+  const padding  = Math.min(options?.padding ?? 2, Math.max(1, r * 0.25)); // 🔹 smaller, radius-aware padding
+  const color    = options?.color ?? "#ffffff";
+  const minPx    = options?.minPx ?? 2;  // 🔹 allow very tiny fonts
+  const maxPx    = options?.maxPx ?? 4;  // 🔹 cap tiny (you asked for 2–4px)
+
+  // available width/height inside the circle
+  const maxW = Math.max(1, (r * 2) - padding * 2);
+  const maxH = Math.max(1, (r * 2) - padding * 2);
+
+  const setFont = (px: number) => { ctx.font = `${px}px ui-sans-serif, system-ui, -apple-system`; };
+  const measure = (s: string) => ctx.measureText(s).width;
+
+  const wrapToLines = (s: string, maxWidth: number): string[] => {
+    const words = s.split(" ").filter(Boolean);
+    const lines: string[] = [];
+    let cur = "";
+    for (const w of words) {
+      const test = cur ? cur + " " + w : w;
+      if (measure(test) <= maxWidth) cur = test;
+      else { if (cur) lines.push(cur); cur = w; }
+    }
+    if (cur) lines.push(cur);
+    return lines;
+  };
+
+  // Binary search for best font size between minPx..maxPx
+  let lo = minPx, hi = Math.max(minPx, maxPx);
+  let best: { fs: number; lines: string[] } | null = null;
+
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    setFont(mid);
+    let lines = wrapToLines(text, maxW);
+
+    // enforce line limit with ellipsis
+    if (lines.length > maxLines) {
+      const head = lines.slice(0, maxLines - 1);
+      const tail = lines.slice(maxLines - 1).join(" ");
+      let ell = tail;
+      while (measure(ell + "…") > maxW && ell.length > 0) ell = ell.slice(0, -1);
+      lines = [...head, ell ? ell + "…" : "…"];
+    }
+
+    const lineHeight = mid * 1.1;
+    const totalH = lines.length * lineHeight;
+
+    if (totalH <= maxH && lines.every(l => measure(l) <= maxW)) {
+      best = { fs: mid, lines };
+      lo = mid + 1; // try bigger within tiny range
+    } else {
+      hi = mid - 1;
+    }
+  }
+
+  // Fallback: force a tiny single-line draw that *always* shows something
+  if (!best) {
+    setFont(minPx);
+    let s = text;
+    while (measure(s) > maxW && s.length > 1) s = s.slice(0, -1);
+    if (s.length === 0) s = "·"; // dot fallback if it's really cramped
+    ctx.fillStyle = color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(s, x, y);
+    return;
+  }
+
+  // Draw best-fit lines
+  setFont(best.fs);
+  ctx.fillStyle = color;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const lineHeight = best.fs * 1.1;
+  const startY = y - ((best.lines.length - 1) * lineHeight) / 2;
+  best.lines.forEach((line, i) => ctx.fillText(line, x, startY + i * lineHeight));
+}
+
+
 export default function KnowledgeGraph() {
   const {
     graph,
@@ -34,7 +123,6 @@ export default function KnowledgeGraph() {
     setPendingSource,
     rewireLink,
     savePosition,
-    // we'll use setGraph to replace the entire view on zoom-in
     setGraph,
     resetViewKey,
   } = useGraphStore();
@@ -48,7 +136,6 @@ export default function KnowledgeGraph() {
   // Allow force simulation temporarily when we swap graphs
   const [cooldownTicks, setCooldownTicks] = useState<number | undefined>(0);
 
-  // Zoom-to-fit whenever graph changes or when resetViewKey increments
   useEffect(() => {
     const el = fgRef.current;
     if (!el) return;
@@ -61,7 +148,6 @@ export default function KnowledgeGraph() {
   function buildFocusedGraph(centerNode: KGNode): GraphData {
     const center: KGNode = {
       ...centerNode,
-      // pin center near origin initially for a smooth intro
       x: 0,
       y: 0,
       fx: 0,
@@ -88,37 +174,30 @@ export default function KnowledgeGraph() {
     const links: KGLink[] = [
       ...children.map((ch) => ({ id: uid(), source: String(center.id), target: ch.id })),
     ];
-    // a couple of sibling links for structure
     if (children.length > 3) {
       links.push({ id: uid(), source: children[0].id, target: children[2].id });
       links.push({ id: uid(), source: children[1].id, target: children[3].id });
     }
 
-    // ensure center is first for any size-based draw logic
     return { nodes: [center, ...children], links };
   }
 
   function preziZoomIntoNode(n: any) {
     const el = fgRef.current;
     if (el && typeof n?.x === "number" && typeof n?.y === "number") {
-      // 1) zoom into the clicked node
       el.centerAt(n.x, n.y, 400);
       el.zoom(12, 400);
     }
 
-    // 2) after zoom-in, swap to a new graph centered on that node
     setTimeout(() => {
-      // push current graph to stack for Back navigation
       viewStackRef.current.push(structuredClone(graph));
       setStackDepth(viewStackRef.current.length);
 
-      const focused = buildFocusedGraph((n as KGNode));
+      const focused = buildFocusedGraph(n as KGNode);
 
-      // let the simulation run briefly to settle the new view
       setCooldownTicks(60);
       setGraph(focused);
 
-      // 3) center and zoom out a bit to see the new subgraph nicely
       setTimeout(() => {
         const el2 = fgRef.current;
         try {
@@ -127,7 +206,6 @@ export default function KnowledgeGraph() {
             el2.zoom(4, 400);
           }
         } catch {}
-        // stop running simulation after some time
         setTimeout(() => setCooldownTicks(0), 1200);
       }, 100);
     }, 420);
@@ -166,7 +244,6 @@ export default function KnowledgeGraph() {
               setPendingSource(null);
             }
           } else {
-            // Select/Zoom mode → Prezi-like zoom into a fresh focused graph
             preziZoomIntoNode(n);
           }
         }}
@@ -175,43 +252,43 @@ export default function KnowledgeGraph() {
             savePosition(String(n.id), n.x, n.y);
           }
         }}
-        nodeCanvasObject={(node: NodeObject, ctx: CanvasRenderingContext2D, globalScale: number) => {
+        nodeCanvasObject={(node: NodeObject, ctx: CanvasRenderingContext2D) => {
           const n = node as unknown as KGNode & { x: number; y: number };
           const degree = (n as any).degree || 0;
-          const r = 4 + Math.log2(1 + degree);
+         const r = 4 + Math.log2(1 + degree);
           const isHL = n.id != null && highlightIds.has(String(n.id));
 
           // highlight halo
           if (isHL) {
             ctx.beginPath();
-            ctx.arc(n.x, n.y, r * 2.2, 0, Math.PI * 2);
+            ctx.arc(n.x, n.y, r * 1.35, 0, Math.PI * 2);
             ctx.globalAlpha = 0.25;
             ctx.fillStyle = "#ffd54f";
             ctx.fill();
             ctx.globalAlpha = 1;
           }
 
-          // node glyph
+          // node circle
           ctx.beginPath();
           ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
           ctx.fillStyle = (n as any).color || "#7aa2ff";
           ctx.fill();
 
-          // label only when zoomed in
-          if (globalScale > 2.3) {
-            const label = (n as any).label || n.title || String(n.id);
-            ctx.font = `${Math.max(8, 14 / globalScale)}px ui-sans-serif, system-ui, -apple-system`;
-            ctx.textBaseline = "middle";
-            ctx.fillStyle = "black";
-            ctx.fillText(label, n.x + r + 3, n.y);
-          }
+          // inner text (auto-fit inside circle, up to 2 lines)
+          const label = (n as any).label || n.title || String(n.id);
+          drawTextInCircle(ctx, label, n.x, n.y, r, {
+            maxLines: 2,
+            padding: 6,
+            color: "#ffffff",
+          });
         }}
         nodePointerAreaPaint={(node: NodeObject, color: string, ctx: CanvasRenderingContext2D) => {
           const n = node as unknown as KGNode & { x: number; y: number };
-          const size = 6 + Math.log2(1 + ((n as any).degree || 1));
+          const degree = (n as any).degree || 0;
+          const r = 14 + Math.log2(1 + degree) * 3;
           ctx.fillStyle = color;
           ctx.beginPath();
-          ctx.arc(n.x, n.y, size * 1.8, 0, 2 * Math.PI, false);
+          ctx.arc(n.x, n.y, r * 1.4, 0, 2 * Math.PI, false); // bigger hit area
           ctx.fill();
         }}
         linkWidth={(l: any) => {
