@@ -143,12 +143,10 @@ export default function KnowledgeGraph() {
 
     el.d3Force(
     "collide",
-    forceCollide<KGNode>()
-      .radius((n) => (n.radius ?? 20) + 8)
+    forceCollide<GraphNode>()
+      .radius((n) => (n.radius ?? 4 + Math.log2(1 + (n.degree ?? 0))) + 30) // add extra padding
       .strength(1)
   );
-
-    el.d3ReheatSimulation(); 
 
     const t = setTimeout(() => {
       try { el.zoomToFit(400, 50); } catch {}
@@ -266,7 +264,8 @@ export default function KnowledgeGraph() {
         nodeCanvasObject={(node: NodeObject, ctx: CanvasRenderingContext2D, globalScale: number) => {
           const n = node as unknown as KGNode & { x: number; y: number };
           const degree = (n as any).degree || 0;
-          const r = 4 + Math.log2(1 + degree);
+          const baseR = 4 + Math.log2(1 + degree);
+          const r = baseR * Math.min(globalScale, 3);
           const isHL = n.id != null && highlightIds.has(String(n.id));
 
           // highlight halo
@@ -286,25 +285,19 @@ export default function KnowledgeGraph() {
           ctx.fill();
 
           const label = (n as any).label || n.title || String(n.id);
-          if (globalScale > 2) {
-            drawTextInCircle(ctx, label, n.x, n.y, r, {
-              maxLines: 10,
-              padding: 6,
-              color: "#ffffff",
-            });
-          }
-          else {
-            drawTextInCircle(ctx, label, n.x, n.y, r, {
-              maxLines: 2,
-              padding: 6,
-              color: "#ffffff",
-            });
-          }
+          drawTextInCircle(ctx, label, n.x, n.y, r, {
+          maxLines: globalScale > 2 ? 10 : 2,
+          padding: 6,
+          color: "#ffffff",
+          maxPx: 6,
+          minPx: 4,
+  });
         }}
-        nodePointerAreaPaint={(node: NodeObject, color: string, ctx: CanvasRenderingContext2D) => {
+        nodePointerAreaPaint={(node: NodeObject, color: string, ctx: CanvasRenderingContext2D, globalScale: number) => {
           const n = node as unknown as KGNode & { x: number; y: number };
           const degree = (n as any).degree || 0;
-          const r = 4 + Math.log2(1 + degree);
+          const baseR = 4 + Math.log2(1 + degree);
+          const r = baseR * Math.min(globalScale, 3);
           ctx.fillStyle = color;
           ctx.beginPath();
           ctx.arc(n.x, n.y, r, 0, 1.5 * Math.PI, false); // bigger hit area

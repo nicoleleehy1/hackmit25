@@ -49,6 +49,8 @@ export default function Page() {
 
       {/* Graph canvas */}
       <KnowledgeGraph />
+
+      
     </main>
   );
 }

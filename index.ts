@@ -1,5 +1,8 @@
 import express from "express";
 import cors from "cors";
+import { exaSearchSummarized } from "./exaHelper";   // new helper
+import { graphFromSummaries } from "./graphify";     // new graph builder
+
 
 //api key config
 import "dotenv/config";
@@ -47,6 +50,29 @@ app.post("/api/graph/generate", (req, res) => {
 
 app.get("/health", (_req, res) => {
   res.send("ok");
+});
+
+// New dynamic graph search route
+app.post("/api/graph/search", async (req, res) => {
+  try {
+    const query = (req.body?.query ?? "").toString().trim();
+    const limit = Number(req.body?.limit ?? 8);
+
+    if (!query) {
+      return res.status(400).json({ error: "Missing 'query' string" });
+    }
+
+    // 1. Search Exa with summaries
+    const results = await exaSearchSummarized(query, Math.max(3, Math.min(limit, 12)));
+
+    // 2. Convert results -> nodes/edges
+    const { graph, sources } = graphFromSummaries(query, results);
+
+    // 3. Send to frontend
+    res.json({ graph, sources });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 
