@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 "use client";
 
 import dynamic from "next/dynamic";
@@ -8,6 +10,7 @@ import { useGraphStore } from "../store/useGraphStore";
 import type { KGNode, KGLink, GraphData } from "../types/graph";
 
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), { ssr: false });
+
 
 // ---------------------- utils ----------------------
 const uid = () =>
@@ -186,6 +189,8 @@ export default function KnowledgeGraph() {
     }
   }, [graph]);
 
+  const [centerNodeId, setCenterNodeId] = useState<string | null>(null);
+
   useEffect(() => {
     const el = fgRef.current;
     if (!el) return;
@@ -277,6 +282,8 @@ export default function KnowledgeGraph() {
     // ensure prev is normalized (it should already be), but be safe:
     setGraph(normalizeGraphData(prev));
 
+    setCenterNodeId(null);
+
     setTimeout(() => {
       try {
         fgRef.current?.zoomToFit(300, 150);
@@ -323,6 +330,7 @@ export default function KnowledgeGraph() {
           
           if (mode === "default") {
             preziZoomIntoNode(n); // keep your zoom behavior in default mode
+            setCenterNodeId(String(n.id));
           }
           // In "add" mode, clicking nodes does nothing special.
 
@@ -358,7 +366,11 @@ export default function KnowledgeGraph() {
 
           ctx.beginPath();
           ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-          ctx.fillStyle = (n as any).color || "#7aa2ff";
+          if (centerNodeId === String(n.id)) {
+            ctx.fillStyle = "#ff6f61";
+          } else {
+            ctx.fillStyle = (n as any).color || "#7aa2ff";
+          }
           ctx.fill();
 
           const label = (n as any).label || n.title || String(n.id);

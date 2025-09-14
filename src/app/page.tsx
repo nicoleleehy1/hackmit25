@@ -3,6 +3,9 @@
 import KnowledgeGraph from "../components/KnowledgeGraph"; // adjust path if needed
 import { useGraphStore } from "../store/useGraphStore";
 import type { Mode } from "../types/graph";
+import PromptBar from "../components/prompt_bar";
+import SourcesPanel from "../components/SourcesPanel";
+
 
 export default function Page() {
   const mode = useGraphStore((s) => s.mode);
@@ -16,7 +19,11 @@ export default function Page() {
         onClick={() => setMode(m)}
         className={`
           rounded-xl border px-3 py-1 text-sm
-          ${isActive ? "bg-blue-500 text-white" : "hover:bg-gray-50 text-white-800"}
+          ${
+            isActive
+              ? "bg-blue-500 text-white"
+              : "text-white-800 hover:bg-gray-50 hover:text-black"
+          }
         `}
       >
         {label}
@@ -56,6 +63,18 @@ export default function Page() {
       {/* Graph canvas */}
       <KnowledgeGraph />
 
+      <PromptBar />
+
+      <div
+        className="
+          absolute top-14 right-0
+          h-[calc(100%-3.5rem)]
+          bg-white border-l overflow-auto
+        "
+        style={{ width: "23rem" }}
+      >
+        <SourcesPanel />
+      </div>
       
     </main>
   );

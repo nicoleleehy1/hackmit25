@@ -6,14 +6,14 @@ const SourcesPanel = () => {
   const sources = useGraphStore((s) => s.sources);
 
   return (
-    <div className="absolute top-4 right-4 w-96 bg-white shadow-lg rounded-lg overflow-hidden border">
+    <div className="absolute top-4 right-4 w-80 bg-white shadow-lg rounded-lg overflow-hidden border ">
       {/* Tab bar */}
       <div className="flex border-b">
         <button
           onClick={() =>
             setOpenTab(openTab === "sources" ? null : "sources")
           }
-          className={`flex-1 px-4 py-2 text-sm font-medium ${
+          className={`flex-1 px-4 py-2 text-sm font-medium text-gray-500 ${
             openTab === "sources" ? "bg-gray-100 border-b-2 border-blue-600" : ""
           }`}
         >

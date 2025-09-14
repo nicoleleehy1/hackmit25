@@ -30,8 +30,8 @@ const PromptBar: React.FC = () => {
       onSubmit={handleSubmit}
       style={{
         position: "fixed",
-        bottom: 20,
-        left: 20,
+        top: "10%",
+        left: "30%",
         zIndex: 1000,
         background: "#fff",
         borderRadius: "8px",
