@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // src/app/api/analyze/route.ts
 import Anthropic from "@anthropic-ai/sdk";
 import * as mammoth from "mammoth";
