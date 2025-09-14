@@ -2,51 +2,53 @@
 "use client";
 import React, { useEffect, useState, useCallback } from "react";
 import { useGraphStore } from "../store/useGraphStore";
-import type { Graph as StoreGraph, Node as StoreNode, Edge as StoreEdge, Source } from "../store/useGraphStore";
 import { makeStarGraph, type ServerGraph } from "./makeStarGraph";
 
-// ----- Exa types -----
+// --- local minimal store types (avoid depending on store exports) ---
+type StoreNode = { id: string; label: string; summary: string };
+type StoreEdge = { source: string; target: string; label: string };
+type StoreGraph = { nodes: StoreNode[]; edges: StoreEdge[] };
+
+// slice we care about; all optional so we don't fight TS
+type GraphFns = {
+  setFromResponse?: (payload: { graph: StoreGraph; sources?: unknown[] }) => void;
+  setGraph?: (graph: StoreGraph) => void;
+  mergeGraph?: (graph: StoreGraph) => void; // if your store has it
+};
+
 type ExaDoc = { id: string; title: string; snippet?: string; text?: string };
 type ExaResponse = { results: ExaDoc[] };
 
-// ----- Store slice typing (what we read) -----
-type GraphStoreSlice = {
-  setFromResponse?: (payload: { graph: StoreGraph; sources?: Source[] }) => void;
-  setGraph?: (graph: StoreGraph) => void;
-};
-
-// expose our click handler on window for the graph component
 declare global {
   interface Window {
     __promoteToCenter?: (q: string) => void;
   }
 }
 
-// Convert helper graph -> store graph
-function toStoreGraph(sg: ServerGraph): StoreGraph {
-  const nodes: StoreNode[] = sg.nodes.map((n) => ({
-    id: n.id,
-    label: n.label,
-    summary: n.summary ?? "",
-  }));
-  const edges: StoreEdge[] = sg.edges.map((e) => ({
-    source: String(e.source),
-    target: String(e.target),
-    label: e.label ?? "",
-  }));
+// Make ids unique per center so merges never overwrite
+function toStoreGraphWithUniqueIds(sg: ServerGraph, centerKey: string): StoreGraph {
+  const centerId = `center:${centerKey}`;
+  const nodes: StoreNode[] = [];
+  sg.nodes.forEach((n, i) => {
+    const id =
+      i === 0 || String(n.id).startsWith("center:")
+        ? String(n.id)
+        : `res:${centerKey}:${i - 1}`;
+    nodes.push({ id, label: n.label, summary: n.summary ?? "" });
+  });
+  const edges: StoreEdge[] = [];
+  for (let i = 1; i < sg.nodes.length; i++) {
+    edges.push({ source: centerId, target: `res:${centerKey}:${i - 1}`, label: "" });
+  }
   return { nodes, edges };
 }
 
 async function fetchResults(query: string, apiKey?: string): Promise<string[]> {
-  if (!apiKey) {
-    throw new Error("Missing Exa API key. Define NEXT_PUBLIC_EXA_API_KEY in .env.local");
-  }
+  if (!apiKey) throw new Error("Missing Exa API key. Define NEXT_PUBLIC_EXA_API_KEY in .env.local");
+
   const res = await fetch("https://api.exa.ai/search", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-    },
+    headers: { "Content-Type": "application/json", "x-api-key": apiKey },
     body: JSON.stringify({ query }),
   });
   if (!res.ok) {
@@ -56,11 +58,7 @@ async function fetchResults(query: string, apiKey?: string): Promise<string[]> {
   const data = (await res.json()) as ExaResponse;
   if (!Array.isArray(data.results)) throw new Error("API response missing results array");
   return data.results.map(
-    (r, i) =>
-      r.title?.trim() ||
-      r.snippet?.trim() ||
-      r.text?.slice(0, 120)?.trim() ||
-      `Result ${i + 1}`
+    (r, i) => r.title?.trim() || r.snippet?.trim() || r.text?.slice(0, 120)?.trim() || `Result ${i + 1}`
   );
 }
 
@@ -70,25 +68,21 @@ export type QueryChainProps = {
 };
 
 const QueryChain: React.FC<QueryChainProps> = ({ initialQuery, onActiveQueryChange }) => {
-  const [activeQuery, setActiveQuery] = useState<string>(initialQuery);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [activeQuery, setActiveQuery] = useState(initialQuery);
+  const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // ✅ select with store types, not `any`
-  const { setFromResponse, setGraph } = useGraphStore<GraphStoreSlice>((s) => ({
-    setFromResponse: s.setFromResponse,
-    setGraph: s.setGraph,
-  }));
+  // select optional functions individually (prevents getSnapshot warning)
+  const setFromResponse = useGraphStore((s: any) => s.setFromResponse as GraphFns["setFromResponse"]);
+  const setGraph        = useGraphStore((s: any) => s.setGraph        as GraphFns["setGraph"]);
+  const mergeGraph      = useGraphStore((s: any) => s.mergeGraph      as GraphFns["mergeGraph"]);
 
   const apiKey = process.env.NEXT_PUBLIC_EXA_API_KEY as string | undefined;
 
-  const promoteToCenter = useCallback(
-    (nextQuery: string) => {
-      setActiveQuery(nextQuery);
-      onActiveQueryChange?.(nextQuery);
-    },
-    [onActiveQueryChange]
-  );
+  const promoteToCenter = useCallback((nextQuery: string) => {
+    setActiveQuery(String(nextQuery || "").trim());
+    onActiveQueryChange?.(String(nextQuery || "").trim());
+  }, [onActiveQueryChange]);
 
   useEffect(() => {
     window.__promoteToCenter = promoteToCenter;
@@ -97,36 +91,31 @@ const QueryChain: React.FC<QueryChainProps> = ({ initialQuery, onActiveQueryChan
 
   useEffect(() => {
     let cancelled = false;
-
     (async () => {
       const q = activeQuery.trim();
       if (!q) return;
-
-      setLoading(true);
-      setErr(null);
-
+      setLoading(true); setErr(null);
       try {
         const titles = await fetchResults(q, apiKey);
         if (cancelled) return;
+        const serverGraph = makeStarGraph(q, titles);
+        const storeGraph  = toStoreGraphWithUniqueIds(serverGraph, q);
 
-        const serverGraph: ServerGraph = makeStarGraph(q, titles);
-        const storeGraph: StoreGraph = toStoreGraph(serverGraph); // 👈 convert
-
-        if (typeof setFromResponse === "function") {
-          setFromResponse({ graph: storeGraph });
+        if (typeof mergeGraph === "function") {
+          mergeGraph(storeGraph);               // expand/accumulate
+        } else if (typeof setFromResponse === "function") {
+          setFromResponse({ graph: storeGraph });// replace
         } else if (typeof setGraph === "function") {
-          setGraph(storeGraph);
+          setGraph(storeGraph);                  // replace
         }
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "Search failed";
-        if (!cancelled) setErr(msg);
+        if (!cancelled) setErr(e instanceof Error ? e.message : "Search failed");
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
-
     return () => { cancelled = true; };
-  }, [activeQuery, apiKey, setFromResponse, setGraph]);
+  }, [activeQuery, apiKey, setFromResponse, setGraph, mergeGraph]);
 
   return (
     <div style={{ display: "grid", gap: 6 }}>
@@ -136,7 +125,7 @@ const QueryChain: React.FC<QueryChainProps> = ({ initialQuery, onActiveQueryChan
       </div>
       {err && <div style={{ color: "#b91c1c", fontSize: 12 }}>{err}</div>}
       <div style={{ fontSize: 11, color: "#6b7280" }}>
-        Tip: click any surrounding node to recenter the graph.
+        Tip: click any surrounding node to recenter the graph. New stars will merge into the current view.
       </div>
     </div>
   );

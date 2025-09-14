@@ -5,6 +5,7 @@ import { useGraphStore } from "../store/useGraphStore";
 import type { Mode } from "../types/graph";
 import PromptBar from "../components/prompt_bar";
 import SourcesPanel from "../components/SourcesPanel";
+import FileUploads from "../components/FileUploads";
 
 export default function Page() {
   const mode = useGraphStore((s) => s.mode);
@@ -67,7 +68,7 @@ export default function Page() {
         "
         style={{ width: "23rem" }}
       >
-        <SourcesPanel />
+        <FileUploads />
       </div>
       
     </main>
