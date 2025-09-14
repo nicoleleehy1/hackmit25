@@ -5,13 +5,6 @@ export { exaSearchSummarized as exaSearch };
 
 const exa = new Exa(process.env.EXA_API_KEY!);
 
-export type ExaSummarized = {
-  title: string;
-  url: string;
-  summary?: string;
-  text?: string;
-  domain?: string;
-};
 
 export async function exaSearchSummarized(query: string, numResults = 8): Promise<ExaSummarized[]> {
   // search + contents + summary in one shot

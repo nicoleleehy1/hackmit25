@@ -11,11 +11,16 @@ const PromptBar: React.FC = () => {
     if (!query.trim()) return;
 
     try {
-      const res = await fetch("http://localhost:4000/api/graph/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query }),
-      });
+      const API =
+  process.env.NEXT_PUBLIC_API_BASE ||
+  `http://${typeof window !== "undefined" ? window.location.hostname : "localhost"}:4000`;
+
+const res = await fetch(`${API}/api/graph/search`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ query }),
+});
+
       const data = await res.json();
 
       // updates nodes, edges, and sources at once
@@ -31,7 +36,7 @@ const PromptBar: React.FC = () => {
       style={{
         position: "fixed",
         top: "10%",
-        left: "30%",
+        left: "28%",
         zIndex: 1000,
         background: "#fff",
         borderRadius: "8px",

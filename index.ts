@@ -1,6 +1,6 @@
-import express, { Request, Response } from "express";  // ✅ add types
+import express, { Request, Response } from "express";
 import cors from "cors";
-import { exaSearchSummarized } from "./exaHelper";     // you already have this
+import { exaSearch } from "./exaHelper";
 import { graphFromSummaries } from "./graphify";
 
 import "dotenv/config";
@@ -8,7 +8,7 @@ const exaKey = process.env.EXA_API_KEY;
 if (!exaKey) throw new Error("Missing EXA_API_KEY in environment");
 
 const app = express();
-const PORT = Number(process.env.PORT) || 4000;         // ✅ ensure number
+const PORT = Number(process.env.PORT) || 4000;
 
 // ✅ CORS — allow your front-end origins
 app.use(cors({ origin: ["http://localhost:3000", "http://localhost:3001"] }));
@@ -17,7 +17,7 @@ app.use(express.json());
 // --- TEST ROUTE (use the helper you already import) ---
 app.get("/api/test/exa", async (_req: Request, res: Response) => {
   try {
-    const results = await exaSearchSummarized("latest AI models", 3);
+    const results = await exaSearch("latest AI models", 3);
     res.json(results);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -57,7 +57,7 @@ app.post("/api/graph/search", async (req: Request, res: Response) => {
     console.log("POST /api/graph/search", { query, limit }); // ✅ helpful log
 
     // 1) Exa search with summaries
-    const results = await exaSearchSummarized(query, Math.max(3, Math.min(limit, 12)));
+    const results = await exaSearch(query, Math.max(3, Math.min(limit, 12)));
 
     // 2) Convert -> { graph, sources }
     const { graph, sources } = graphFromSummaries(query, results);

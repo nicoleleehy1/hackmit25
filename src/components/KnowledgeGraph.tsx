@@ -174,7 +174,11 @@ export default function KnowledgeGraph() {
   const fgRef = useRef<any>(null);
 
   // stack of *normalized* graphs
-  const viewStackRef = useRef<GraphData[]>([]);
+  type GraphSnapshot = {
+    graph: GraphData;
+    centerNodeId: string | null;
+  };
+  const viewStackRef = useRef<GraphSnapshot[]>([]);
   const [stackDepth, setStackDepth] = useState(0);
 
   const [cooldownTicks, setCooldownTicks] = useState<number | undefined>(0);
@@ -256,8 +260,11 @@ export default function KnowledgeGraph() {
     const el = fgRef.current;
     if (!el) return;
 
-    viewStackRef.current.push(normalizeGraphData(structuredClone(sanitizedGraph)));
-    setStackDepth(viewStackRef.current.length);
+  viewStackRef.current.push({
+    graph: normalizeGraphData(structuredClone(sanitizedGraph)),
+    centerNodeId: centerNodeId,
+  });    
+  setStackDepth(viewStackRef.current.length);
 
     const focused = buildFocusedGraph(n as KGNode);
     setCooldownTicks(60);
@@ -280,9 +287,9 @@ export default function KnowledgeGraph() {
     setCooldownTicks(60);
 
     // ensure prev is normalized (it should already be), but be safe:
-    setGraph(normalizeGraphData(prev));
+    setGraph(normalizeGraphData(prev.graph));
 
-    setCenterNodeId(null);
+    setCenterNodeId(prev.centerNodeId);
 
     setTimeout(() => {
       try {
