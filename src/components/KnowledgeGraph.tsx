@@ -2,6 +2,8 @@
 
 "use client";
 
+
+
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { NodeObject } from "force-graph";
@@ -15,12 +17,6 @@ const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
 });
 
 // ---------------------- utils ----------------------
-
-function toId(v: any): string {
-  if (v == null) return "";
-  if (typeof v === "object") return String((v as any).id ?? "");
-  return String(v);
-}
 
 function drawTextInCircle(
   ctx: CanvasRenderingContext2D,

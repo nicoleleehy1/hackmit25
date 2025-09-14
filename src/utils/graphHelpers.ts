@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { GraphData, KGNode, KGLink } from "@/types/graph";
 
 export const uid = () =>

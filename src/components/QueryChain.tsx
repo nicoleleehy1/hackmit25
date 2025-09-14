@@ -1,18 +1,51 @@
 // components/QueryChain.tsx
 "use client";
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useGraphStore } from "../store/useGraphStore";
-import { makeStarGraph, ServerGraph } from "./makeStarGraph";
+import type { Graph as StoreGraph, Node as StoreNode, Edge as StoreEdge, Source } from "../store/useGraphStore";
+import { makeStarGraph, type ServerGraph } from "./makeStarGraph";
 
+// ----- Exa types -----
 type ExaDoc = { id: string; title: string; snippet?: string; text?: string };
 type ExaResponse = { results: ExaDoc[] };
 
+// ----- Store slice typing (what we read) -----
+type GraphStoreSlice = {
+  setFromResponse?: (payload: { graph: StoreGraph; sources?: Source[] }) => void;
+  setGraph?: (graph: StoreGraph) => void;
+};
+
+// expose our click handler on window for the graph component
+declare global {
+  interface Window {
+    __promoteToCenter?: (q: string) => void;
+  }
+}
+
+// Convert helper graph -> store graph
+function toStoreGraph(sg: ServerGraph): StoreGraph {
+  const nodes: StoreNode[] = sg.nodes.map((n) => ({
+    id: n.id,
+    label: n.label,
+    summary: n.summary ?? "",
+  }));
+  const edges: StoreEdge[] = sg.edges.map((e) => ({
+    source: String(e.source),
+    target: String(e.target),
+    label: e.label ?? "",
+  }));
+  return { nodes, edges };
+}
+
 async function fetchResults(query: string, apiKey?: string): Promise<string[]> {
+  if (!apiKey) {
+    throw new Error("Missing Exa API key. Define NEXT_PUBLIC_EXA_API_KEY in .env.local");
+  }
   const res = await fetch("https://api.exa.ai/search", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(apiKey ? { "x-api-key": apiKey } : {}),
+      "x-api-key": apiKey,
     },
     body: JSON.stringify({ query }),
   });
@@ -22,62 +55,78 @@ async function fetchResults(query: string, apiKey?: string): Promise<string[]> {
   }
   const data = (await res.json()) as ExaResponse;
   if (!Array.isArray(data.results)) throw new Error("API response missing results array");
-  // choose the visible text per result
-  return data.results.map((r, i) => r.title?.trim() || r.snippet?.trim() || r.text?.slice(0, 120)?.trim() || `Result ${i + 1}`);
+  return data.results.map(
+    (r, i) =>
+      r.title?.trim() ||
+      r.snippet?.trim() ||
+      r.text?.slice(0, 120)?.trim() ||
+      `Result ${i + 1}`
+  );
 }
 
-type Props = {
+export type QueryChainProps = {
   initialQuery: string;
-  exaApiKey?: string; // or rely on NEXT_PUBLIC_EXA_API_KEY via server env if you proxy
   onActiveQueryChange?: (q: string) => void;
 };
 
-const QueryChain: React.FC<Props> = ({ initialQuery, exaApiKey, onActiveQueryChange }) => {
-  const [activeQuery, setActiveQuery] = useState(initialQuery);
-  const [loading, setLoading] = useState(false);
+const QueryChain: React.FC<QueryChainProps> = ({ initialQuery, onActiveQueryChange }) => {
+  const [activeQuery, setActiveQuery] = useState<string>(initialQuery);
+  const [loading, setLoading] = useState<boolean>(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const { setFromResponse, setGraph } = useGraphStore((s: any) => s);
+  // ✅ select with store types, not `any`
+  const { setFromResponse, setGraph } = useGraphStore<GraphStoreSlice>((s) => ({
+    setFromResponse: s.setFromResponse,
+    setGraph: s.setGraph,
+  }));
 
-  // expose for graph clicks
-  const promoteToCenter = useCallback((nextQuery: string) => {
-    setActiveQuery(nextQuery);
-    onActiveQueryChange?.(nextQuery);
-  }, [onActiveQueryChange]);
+  const apiKey = process.env.NEXT_PUBLIC_EXA_API_KEY as string | undefined;
 
-  // Put a function on the store so your Graph component can call it on node click.
+  const promoteToCenter = useCallback(
+    (nextQuery: string) => {
+      setActiveQuery(nextQuery);
+      onActiveQueryChange?.(nextQuery);
+    },
+    [onActiveQueryChange]
+  );
+
   useEffect(() => {
-    // If your store already has a setter for “onNodeClick”, reuse that. Otherwise:
-    if (typeof window !== "undefined") {
-      // @ts-ignore – stash for your graph renderer to read
-      window.__promoteToCenter = promoteToCenter;
-    }
+    window.__promoteToCenter = promoteToCenter;
+    return () => { delete window.__promoteToCenter; };
   }, [promoteToCenter]);
 
-  // Whenever activeQuery changes, fetch and rebuild the star graph
   useEffect(() => {
     let cancelled = false;
+
     (async () => {
-      if (!activeQuery.trim()) return;
-      setLoading(true); setErr(null);
+      const q = activeQuery.trim();
+      if (!q) return;
+
+      setLoading(true);
+      setErr(null);
+
       try {
-        const titles = await fetchResults(activeQuery, exaApiKey);
+        const titles = await fetchResults(q, apiKey);
         if (cancelled) return;
-        const graph: ServerGraph = makeStarGraph(activeQuery, titles);
+
+        const serverGraph: ServerGraph = makeStarGraph(q, titles);
+        const storeGraph: StoreGraph = toStoreGraph(serverGraph); // 👈 convert
 
         if (typeof setFromResponse === "function") {
-          setFromResponse({ graph });
+          setFromResponse({ graph: storeGraph });
         } else if (typeof setGraph === "function") {
-          setGraph(graph);
+          setGraph(storeGraph);
         }
-      } catch (e: any) {
-        if (!cancelled) setErr(e?.message || "Search failed");
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Search failed";
+        if (!cancelled) setErr(msg);
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
+
     return () => { cancelled = true; };
-  }, [activeQuery, exaApiKey, setFromResponse, setGraph]);
+  }, [activeQuery, apiKey, setFromResponse, setGraph]);
 
   return (
     <div style={{ display: "grid", gap: 6 }}>

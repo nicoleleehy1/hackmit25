@@ -124,10 +124,6 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       const mapped = mapServerGraphToClient(graph);
       const rootNode = mapped.nodes.find((n) => n.id === "root") ?? mapped.nodes[0];
       const focused = rootNode ? buildFocusedGraph(rootNode) : mapped;
-
-      setTimeout(() => {
-    s.bumpReset(); // force re-render / zoom-to-fit effect
-  }, 50);
       return {
         graph: recomputeDegrees(focused),
         sources: sources ?? s.sources,

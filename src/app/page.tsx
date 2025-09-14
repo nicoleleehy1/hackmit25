@@ -1,17 +1,15 @@
-"use client";
 
+"use client";
 import KnowledgeGraph from "../components/KnowledgeGraph"; // adjust path if needed
 import { useGraphStore } from "../store/useGraphStore";
 import type { Mode } from "../types/graph";
 import PromptBar from "../components/prompt_bar";
 import SourcesPanel from "../components/SourcesPanel";
 
-
 export default function Page() {
   const mode = useGraphStore((s) => s.mode);
   const setMode = useGraphStore((s) => s.setMode);
   const bumpReset = useGraphStore((s) => s.bumpReset);
-
   const ModeButton = ({ m, label }: { m: Mode; label: string }) => {
     const isActive = mode === m;
     return (
@@ -30,7 +28,6 @@ export default function Page() {
       </button>
     );
   };
-
   return (
     <main className="h-screen w-screen overflow-hidden">
       {/* Top bar */}
@@ -59,12 +56,9 @@ export default function Page() {
           </a>
         </div>
       </div>
-
       {/* Graph canvas */}
       <KnowledgeGraph />
-
       <PromptBar />
-
       <div
         className="
           absolute top-14 right-0

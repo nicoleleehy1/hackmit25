@@ -1,6 +1,9 @@
 // src/store/useGraphStore.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { create } from "zustand";
 
+// ---------- Types you already had ----------
 export type Node = {
   id: string;
   label: string;
@@ -24,10 +27,25 @@ export type Source = {
   url: string;
 };
 
+// ---------- NEW: minimal typing for the ForceGraph ref ----------
+type ForceGraphLike = {
+  d3ReheatSimulation?: () => void;
+  // add other methods you actually call, e.g.:
+  // zoom?: (k: number) => void;
+};
+
+// A plain “ref-like” container (no React import / no hooks)
+type RefLike<T> = { current: T | null } | null;
+
+// ---------- Store shape ----------
 type GraphStore = {
   nodes: Node[];
   edges: Edge[];
   sources: Source[];
+
+  // NEW: a place to hold your ForceGraph ref container
+  graphRef: RefLike<ForceGraphLike>;
+  setGraphRef: (ref: RefLike<ForceGraphLike>) => void;
 
   setGraph: (graph: Graph) => void;
   setSources: (sources: Source[]) => void;
@@ -37,6 +55,9 @@ type GraphStore = {
 
   // optional: merge a new graph into the current one (e.g., expand)
   mergeGraph: (patch: Graph) => void;
+
+  // NEW (optional): helper to reheat the simulation from anywhere
+  reheat: () => void;
 };
 
 export const useGraphStore = create<GraphStore>((set, get) => ({
@@ -44,20 +65,32 @@ export const useGraphStore = create<GraphStore>((set, get) => ({
   edges: [],
   sources: [],
 
-  setGraph: (graph) =>
+  // NEW: ref container lives in the store, but created/owned by a component
+  graphRef: null,
+  setGraphRef: (ref) => set({ graphRef: ref }),
+
+  setGraph: (graph) => {
     set({
       nodes: graph.nodes ?? [],
       edges: graph.edges ?? [],
-    }),
+    });
+    // optional: nudge the graph after big updates
+    const fg = get().graphRef?.current;
+    fg?.d3ReheatSimulation?.();
+  },
 
   setSources: (sources) => set({ sources: sources ?? [] }),
 
-  setFromResponse: ({ graph, sources }) =>
+  setFromResponse: ({ graph, sources }) => {
     set({
       nodes: graph?.nodes ?? [],
       edges: graph?.edges ?? [],
       sources: sources ?? [],
-    }),
+    });
+    // optional: nudge the graph after big updates
+    const fg = get().graphRef?.current;
+    fg?.d3ReheatSimulation?.();
+  },
 
   clearGraph: () => set({ nodes: [], edges: [], sources: [] }),
 
@@ -112,5 +145,15 @@ export const useGraphStore = create<GraphStore>((set, get) => ({
       nodes: Array.from(mergedNodesById.values()),
       edges: Array.from(mergedEdgeMap.values()),
     });
+
+    // optional: nudge the graph after merge
+    const fg = get().graphRef?.current;
+    fg?.d3ReheatSimulation?.();
+  },
+
+  // NEW convenience method you can call from anywhere
+  reheat: () => {
+    const fg = get().graphRef?.current;
+    fg?.d3ReheatSimulation?.();
   },
 }));
