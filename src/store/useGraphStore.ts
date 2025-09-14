@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { create } from "zustand";
 import type { GraphData, KGNode, Mode } from "@/types/graph";
-import { uid, buildFocusedGraph } from "@/utils/graphHelpers";
 
 // Backend payload types (what /api/graph/search returns)
 type ServerNode = { id: string; label: string; summary?: string };
@@ -9,6 +8,11 @@ type ServerEdge = { source: string; target: string; label?: string };
 type ServerGraph = { nodes: ServerNode[]; edges: ServerEdge[] };
 
 export type Source = { id: string; title: string; url: string };
+
+const uid = () =>
+  globalThis.crypto && "randomUUID" in globalThis.crypto
+    ? globalThis.crypto.randomUUID()
+    : Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 function recomputeDegrees(g: GraphData): GraphData {
   const deg = new Map<string, number>();
@@ -108,7 +112,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   pendingSource: null,
   highlightIds: new Set(),
   resetViewKey: 0,
-  sources: [],
+  sources: [], // ✅ NEW
 
   setMode: (m) =>
     set({
@@ -122,10 +126,8 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   setFromResponse: ({ graph, sources }) =>
     set((s) => {
       const mapped = mapServerGraphToClient(graph);
-      const rootNode = mapped.nodes.find((n) => n.id === "root") ?? mapped.nodes[0];
-      const focused = rootNode ? buildFocusedGraph(rootNode) : mapped;
       return {
-        graph: recomputeDegrees(focused),
+        graph: recomputeDegrees(mapped),
         sources: sources ?? s.sources,
       };
     }),

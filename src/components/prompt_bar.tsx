@@ -1,27 +1,31 @@
 "use client";
+
 import React, { useState } from "react";
 import { useGraphStore } from "../store/useGraphStore";
+
 type ServerNode = { id: string; label: string; summary?: string };
-type ResultServerNode = { id: string; title: string; summary?: string };
 type ServerEdge = { source: string; target: string; label?: string };
 type ServerGraph = { nodes: ServerNode[]; edges: ServerEdge[] };
+
 const PromptBar: React.FC = () => {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim() || loading) return;
+
     setLoading(true);
     setErrMsg(null);
-//
+
     try {
       const API =
         process.env.NEXT_PUBLIC_API_BASE ||
         `http://${typeof window !== "undefined" ? window.location.hostname : "localhost"}:3000`;
       console.log(">>>> API and query:")
       console.log(API)
-      console.log(query) // in the other file put title inside instead
+      console.log(query)
       console.log(window.location.hostname)
       
       const res = await fetch(`https://api.exa.ai/search`, {
@@ -31,20 +35,23 @@ const PromptBar: React.FC = () => {
           "x-api-key": "3fc206e8-31b7-41f1-8c25-f184a0855f28" 
        },
         body: JSON.stringify({ query }),
+
       });
-      //
       
       if (!res.ok) {
         const text = await res.text().catch(() => "");
         throw new Error(`API ${res.status}: ${text || "request failed"}`);
       }
+
       const data = await res.json();
+
       console.log("got json")
       console.log(data)
+
       if (!Array.isArray(data.results)) {
         throw new Error("API response missing results array");
       }
-      const clientNodes: ServerNode[] = data.results.map((n: ResultServerNode, i: number) => {
+      const clientNodes: ServerNode[] = data.results.map((n: any, i: number) => {
         const node: ServerNode = {
           id: n.id,
           label: n.title,
@@ -52,6 +59,7 @@ const PromptBar: React.FC = () => {
         };
         return node;
       });
+
       const graph: ServerGraph = {
         nodes: clientNodes,
         edges: [],
@@ -67,16 +75,17 @@ const PromptBar: React.FC = () => {
       } else if (useGraphStore.getState().setGraph) {
         // fallback if you only have setGraph
         console.log("got json222")
-        useGraphStore.getState().setGraph(data.graph); //this line controlls it 
+        useGraphStore.getState().setGraph(data.graph);
       }
-    } catch (err: unknown) {
+
+    } catch (err: any) {
       console.error("Graph search failed:", err);
-      setErrMsg(err instanceof Error ? err.message : "Search failed");
+      setErrMsg(err?.message || "Search failed");
     } finally {
       setLoading(false);
     }
   };
-  //
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -109,6 +118,7 @@ const PromptBar: React.FC = () => {
           color: "#000",
         }}
       />
+
       {/* Visible trigger that calls the backend */}
       <button
   type="submit"
@@ -126,6 +136,8 @@ const PromptBar: React.FC = () => {
 >
   {loading ? "Searching…" : "Search"}
 </button>
+
+
       {/* optional tiny error text */}
       {errMsg && (
         <span style={{ color: "#b91c1c", fontSize: "12px", marginLeft: "4px" }}>
@@ -135,4 +147,5 @@ const PromptBar: React.FC = () => {
     </form>
   );
 };
+
 export default PromptBar;
