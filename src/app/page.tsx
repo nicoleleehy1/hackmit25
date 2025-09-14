@@ -40,7 +40,7 @@ export default function Page() {
           <div className="mx-3 h-4 w-px bg-gray-200" />
           <ModeButton m="default" label="Select/Expand" />
           <ModeButton m="connect" label="Connect" />
-          <ModeButton m="add" label="Add (later)" />
+          <ModeButton m="add" label="Add a Node" />
         </div>
         <div className="flex items-center gap-2">
           <button

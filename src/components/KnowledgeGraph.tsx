@@ -9,12 +9,13 @@ import { forceCollide } from "d3-force-3d";
 import { useGraphStore } from "../store/useGraphStore";
 import type { KGNode, KGLink, GraphData } from "../types/graph";
 
-const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), { ssr: false });
-
+const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
+  ssr: false,
+});
 
 // ---------------------- utils ----------------------
 const uid = () =>
-  (globalThis.crypto && "randomUUID" in globalThis.crypto)
+  globalThis.crypto && "randomUUID" in globalThis.crypto
     ? (globalThis.crypto as any).randomUUID()
     : Math.random().toString(36).slice(2) + Date.now().toString(36);
 
@@ -45,16 +46,25 @@ function normalizeGraphData(g: GraphData): GraphData {
       };
     })
     // drop any dangling links defensively
-    .filter((l) => nodeIdSet.has(String(l.source)) && nodeIdSet.has(String(l.target)));
+    .filter(
+      (l) => nodeIdSet.has(String(l.source)) && nodeIdSet.has(String(l.target))
+    );
 
   return { nodes, links };
 }
 
-function radialChildren(center: { x: number; y: number }, count: number, radius = 120) {
+function radialChildren(
+  center: { x: number; y: number },
+  count: number,
+  radius = 120
+) {
   const out: Array<{ x: number; y: number }> = [];
   for (let i = 0; i < count; i++) {
     const a = (i / count) * Math.PI * 2;
-    out.push({ x: center.x + Math.cos(a) * radius, y: center.y + Math.sin(a) * radius });
+    out.push({
+      x: center.x + Math.cos(a) * radius,
+      y: center.y + Math.sin(a) * radius,
+    });
   }
   return out;
 }
@@ -65,7 +75,13 @@ function drawTextInCircle(
   x: number,
   y: number,
   r: number,
-  options?: { maxLines?: number; padding?: number; color?: string; minPx?: number; maxPx?: number }
+  options?: {
+    maxLines?: number;
+    padding?: number;
+    color?: string;
+    minPx?: number;
+    maxPx?: number;
+  }
 ) {
   const maxLines = options?.maxLines ?? 2;
   const padding = Math.min(options?.padding ?? 2, Math.max(1, r * 0.25));
@@ -110,7 +126,8 @@ function drawTextInCircle(
       const head = lines.slice(0, maxLines - 1);
       const tail = lines.slice(maxLines - 1).join(" ");
       let ell = tail;
-      while (measure(ell + "…") > maxW && ell.length > 0) ell = ell.slice(0, -1);
+      while (measure(ell + "…") > maxW && ell.length > 0)
+        ell = ell.slice(0, -1);
       lines = [...head, ell ? ell + "…" : "…"];
     }
 
@@ -143,7 +160,9 @@ function drawTextInCircle(
   ctx.textBaseline = "middle";
   const lineHeight = best.fs * 1.1;
   const startY = y - ((best.lines.length - 1) * lineHeight) / 2;
-  best.lines.forEach((line, i) => ctx.fillText(line, x, startY + i * lineHeight));
+  best.lines.forEach((line, i) =>
+    ctx.fillText(line, x, startY + i * lineHeight)
+  );
 }
 
 // helper: convert a mouse event to graph coords reliably
@@ -183,7 +202,6 @@ export default function KnowledgeGraph() {
 
   const [cooldownTicks, setCooldownTicks] = useState<number | undefined>(0);
 
-  // 🔧 Always deep-clone + normalize the current store graph before rendering
   const sanitizedGraph: GraphData = useMemo(() => {
     try {
       return normalizeGraphData(structuredClone(graph));
@@ -202,7 +220,9 @@ export default function KnowledgeGraph() {
     el.d3Force(
       "collide",
       forceCollide()
-        .radius((n: KGNode) => (n.radius ?? 4 + Math.log2(1 + (n.degree ?? 0))) + 30)
+        .radius(
+          (n: KGNode) => (n.radius ?? 4 + Math.log2(1 + (n.degree ?? 0))) + 30
+        )
         .strength(1)
     );
 
@@ -218,7 +238,7 @@ export default function KnowledgeGraph() {
     const centerId = String(centerNode.id);
     const center: KGNode = {
       ...centerNode,
-      id: centerId, // 🔧 keep id a string
+      id: centerId,
       x: 0,
       y: 0,
       fx: 0,
@@ -233,7 +253,7 @@ export default function KnowledgeGraph() {
       const id = uid();
       const title = `${center.title ?? center.id} • ${i + 1}`;
       return {
-        id: String(id), // 🔧 string id
+        id: String(id),
         title,
         label: title,
         level: (center.level ?? 0) + 1,
@@ -244,13 +264,21 @@ export default function KnowledgeGraph() {
 
     const links: KGLink[] = children.map((ch) => ({
       id: uid(),
-      source: centerId, // 🔧 ids, not objects
+      source: centerId,
       target: String(ch.id),
     }));
 
     if (children.length > 3) {
-      links.push({ id: uid(), source: String(children[0].id), target: String(children[2].id) });
-      links.push({ id: uid(), source: String(children[1].id), target: String(children[3].id) });
+      links.push({
+        id: uid(),
+        source: String(children[0].id),
+        target: String(children[2].id),
+      });
+      links.push({
+        id: uid(),
+        source: String(children[1].id),
+        target: String(children[3].id),
+      });
     }
 
     return normalizeGraphData({ nodes: [center, ...children], links }); // 🔧
@@ -260,11 +288,11 @@ export default function KnowledgeGraph() {
     const el = fgRef.current;
     if (!el) return;
 
-  viewStackRef.current.push({
-    graph: normalizeGraphData(structuredClone(sanitizedGraph)),
-    centerNodeId: centerNodeId,
-  });    
-  setStackDepth(viewStackRef.current.length);
+    viewStackRef.current.push({
+      graph: normalizeGraphData(structuredClone(sanitizedGraph)),
+      centerNodeId: centerNodeId,
+    });
+    setStackDepth(viewStackRef.current.length);
 
     const focused = buildFocusedGraph(n as KGNode);
     setCooldownTicks(60);
@@ -276,7 +304,7 @@ export default function KnowledgeGraph() {
       } catch {}
       setTimeout(() => setCooldownTicks(0), 800);
     }, 200); // small delay so the graph renders first
-}
+  }
 
   function handleBack() {
     const prev = viewStackRef.current.pop();
@@ -303,7 +331,7 @@ export default function KnowledgeGraph() {
     <div className="relative h-[calc(100vh-4rem)] w-full bg-white">
       <ForceGraph2D
         ref={fgRef}
-        graphData={sanitizedGraph} // 🔧 use sanitized copy
+        graphData={sanitizedGraph}
         cooldownTicks={mode === "add" ? 0 : cooldownTicks}
         nodeRelSize={6}
         enableNodeDrag
@@ -334,7 +362,7 @@ export default function KnowledgeGraph() {
             }
             return;
           }
-          
+
           if (mode === "default") {
             preziZoomIntoNode(n); // keep your zoom behavior in default mode
             setCenterNodeId(String(n.id));
@@ -342,20 +370,23 @@ export default function KnowledgeGraph() {
           // In "add" mode, clicking nodes does nothing special.
 
           if (mode === "add") {
-            // ✅ NEW: allow adding multiple nodes even if clicking on top of a node
-            const nx = (n.x ?? 0);
-            const ny = (n.y ?? 0);
+            // allow adding multiple nodes even if clicking on top of a node
+            const nx = n.x ?? 0;
+            const ny = n.y ?? 0;
             addFreeNodeAt(nx, ny);
             return;
           }
         }}
-
         onNodeDragEnd={(n: any) => {
           if (typeof n?.x === "number" && typeof n?.y === "number") {
             savePosition(String(n.id), n.x, n.y);
           }
         }}
-        nodeCanvasObject={(node: NodeObject, ctx: CanvasRenderingContext2D, globalScale: number) => {
+        nodeCanvasObject={(
+          node: NodeObject,
+          ctx: CanvasRenderingContext2D,
+          globalScale: number
+        ) => {
           const n = node as unknown as KGNode & { x: number; y: number };
           const degree = (n as any).degree || 0;
           const baseR = 4 + Math.log2(1 + degree);
@@ -389,19 +420,28 @@ export default function KnowledgeGraph() {
             minPx: 4,
           });
         }}
-        nodePointerAreaPaint={(node: NodeObject, color: string, ctx: CanvasRenderingContext2D, globalScale: number) => {
+        nodePointerAreaPaint={(
+          node: NodeObject,
+          color: string,
+          ctx: CanvasRenderingContext2D,
+          globalScale: number
+        ) => {
           const n = node as unknown as KGNode & { x: number; y: number };
           const degree = (n as any).degree || 0;
           const baseR = 4 + Math.log2(1 + degree);
           const r = baseR * Math.min(globalScale, 3);
           ctx.fillStyle = color;
           ctx.beginPath();
-          ctx.arc(n.x, n.y, r, 0, Math.PI * 2, false); // 🔧 full hit area
+          ctx.arc(n.x, n.y, r, 0, Math.PI * 2, false);
           ctx.fill();
         }}
         linkWidth={(l: any) => {
-          const sid = String(typeof l.source === "object" ? (l.source as any).id : l.source);
-          const tid = String(typeof l.target === "object" ? (l.target as any).id : l.target);
+          const sid = String(
+            typeof l.source === "object" ? (l.source as any).id : l.source
+          );
+          const tid = String(
+            typeof l.target === "object" ? (l.target as any).id : l.target
+          );
           return highlightIds.has(sid) && highlightIds.has(tid) ? 1.6 : 0.6;
         }}
         linkDirectionalParticles={0}
